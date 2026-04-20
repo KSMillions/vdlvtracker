@@ -1,0 +1,21 @@
+{
+  "name": "vdlv-site-tracker",
+  "version": "1.0.0",
+  "description": "VDLV Site Activity Tracker — Standalone construction site management tool",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "construction",
+    "site-tracker",
+    "jbcc",
+    "fidic",
+    "nec",
+    "gcc",
+    "south-africa"
+  ],
+  "author": "VDLV Projects / Speco Group",
+  "license": "UNLICENSED"
+}
