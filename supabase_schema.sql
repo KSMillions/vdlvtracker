@@ -40,6 +40,7 @@ alter table daily_logs      enable row level security;
 
 -- ── Projects RLS ────────────────────────────────────
 -- SELECT: user must be a member of the project
+drop policy if exists "projects_select" on projects;
 create policy "projects_select" on projects
   for select using (
     id in (
@@ -47,11 +48,13 @@ create policy "projects_select" on projects
     )
   );
 
--- INSERT: any authenticated user can create a project (invite-only means they already have an account)
+-- INSERT: any authenticated user can create a project
+drop policy if exists "projects_insert" on projects;
 create policy "projects_insert" on projects
   for insert with check (created_by = auth.uid());
 
 -- UPDATE: only admins of the project can update it
+drop policy if exists "projects_update" on projects;
 create policy "projects_update" on projects
   for update using (
     id in (
@@ -62,6 +65,7 @@ create policy "projects_update" on projects
 
 -- ── Project Members RLS ──────────────────────────────
 -- SELECT: you can see your own membership + members of your admin projects
+drop policy if exists "members_select" on project_members;
 create policy "members_select" on project_members
   for select using (
     user_id = auth.uid()
@@ -71,11 +75,13 @@ create policy "members_select" on project_members
     )
   );
 
--- INSERT: users can add themselves to a project (creation flow)
+-- INSERT: users can add themselves (creation flow)
+drop policy if exists "members_insert" on project_members;
 create policy "members_insert" on project_members
   for insert with check (user_id = auth.uid());
 
 -- DELETE: admins can remove members
+drop policy if exists "members_delete" on project_members;
 create policy "members_delete" on project_members
   for delete using (
     project_id in (
@@ -86,6 +92,7 @@ create policy "members_delete" on project_members
 
 -- ── Daily Logs RLS ───────────────────────────────────
 -- SELECT: project members only
+drop policy if exists "logs_select" on daily_logs;
 create policy "logs_select" on daily_logs
   for select using (
     project_id in (
@@ -94,6 +101,7 @@ create policy "logs_select" on daily_logs
   );
 
 -- INSERT: project members can create a log
+drop policy if exists "logs_insert" on daily_logs;
 create policy "logs_insert" on daily_logs
   for insert with check (
     project_id in (
@@ -102,6 +110,7 @@ create policy "logs_insert" on daily_logs
   );
 
 -- UPDATE: project members can update the log
+drop policy if exists "logs_update" on daily_logs;
 create policy "logs_update" on daily_logs
   for update using (
     project_id in (
