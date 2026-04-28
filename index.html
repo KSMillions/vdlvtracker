@@ -7,10 +7,22 @@
 <meta name="description" content="Professional daily site activity tracker for construction projects. Track labour, plant, materials, activities, delays, and generate comprehensive PDF reports."/>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="css/styles.css"/>
+<!-- Supabase JS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- PDF & FileSaver -->
 <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
+
+<!-- ═══ LOADING OVERLAY ═══ -->
+<div id="loadingOverlay" style="display:flex; position:fixed; inset:0; background:rgba(10,10,10,0.85); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
+  <div style="width:40px;height:40px;border:3px solid rgba(201,168,76,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.7s linear infinite;"></div>
+  <div style="font-size:12px;color:var(--text-muted);letter-spacing:0.12em;text-transform:uppercase;">Loading…</div>
+</div>
+<style>@keyframes spin { to { transform:rotate(360deg); } }</style>
+
+<!-- ═══ HEADER ═══ -->
 <header>
   <div style="display:flex; align-items:center;">
     <button class="hamburger" onclick="toggleSidebar()">☰</button>
@@ -20,20 +32,48 @@
     </div>
   </div>
   <div class="header-right">
+    <!-- Realtime indicator -->
+    <div class="realtime-indicator" title="Live sync status">
+      <span id="realtimeDot" style="width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;transition:background 0.3s;"></span>
+      <span id="realtimeLabel" style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;">Syncing…</span>
+    </div>
+    <!-- User badge -->
+    <div class="user-badge">
+      <span id="userEmailBadge" style="font-size:11px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button class="btn-logout" onclick="signOut()" title="Sign out">⟵ Sign Out</button>
+    </div>
     <div class="date-badge" id="liveDateBadge"></div>
-    <button class="btn-save" onclick="saveDailyLog()">Save Report</button>
+    <button class="btn-save" id="mainSaveBtn" onclick="saveDailyLog()">Save Report</button>
   </div>
 </header>
+
 <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
 <div class="app">
   <nav class="sidebar">
+
+    <!-- Project Switcher -->
+    <div class="sidebar-project-section">
+      <div class="sidebar-section-label">Project</div>
+      <div id="projectSwitcherContainer" class="project-switcher-wrap">
+        <div style="font-size:11px;color:var(--text-muted);padding:8px;">Loading projects…</div>
+      </div>
+      <button class="btn-new-project" onclick="openCreateProjectModal()">+ New Project</button>
+    </div>
+
+    <!-- Active project info card -->
     <div class="project-card">
       <div class="proj-label">Active Project</div>
-      <div class="proj-name" id="sidebarProjectName">Set project<br>name below</div>
-      <div class="proj-meta"><span id="sidebarContract">📋 —</span><span id="sidebarAgent">👤 Site Agent</span><span id="sidebarWeek">📅 Week —</span></div>
+      <div class="proj-name" id="sidebarProjectName">Select a project</div>
+      <div class="proj-meta">
+        <span id="sidebarContract">📋 —</span>
+        <span id="sidebarAgent">👤 Site Agent</span>
+        <span id="sidebarWeek">📅 Week —</span>
+      </div>
     </div>
+
     <div class="sidebar-label">Daily Log</div>
-    <div class="nav-item active" onclick="showPage('overview', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor"/></svg> Dashboard</div>
+    <div class="nav-item active" id="navDashboard" onclick="showPage('overview', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor"/></svg> Dashboard</div>
     <div class="nav-item" onclick="showPage('siteinfo', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L1 4v8h12V4L7 1zM3 12v-4h8v4" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg> Site Information</div>
     <div class="nav-item" onclick="showPage('labour', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="4" r="2.5" fill="currentColor"/><path d="M2 12c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg> Labour <span class="nav-badge" id="labourBadge">0</span></div>
     <div class="nav-item" onclick="showPage('plant', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="5" width="12" height="6" rx="1" fill="currentColor" opacity=".3"/><rect x="3" y="3" width="5" height="3" rx="1" fill="currentColor"/><circle cx="4" cy="11" r="1.5" fill="currentColor"/><circle cx="10" cy="11" r="1.5" fill="currentColor"/></svg> Plant &amp; Equipment</div>
@@ -46,6 +86,7 @@
   </nav>
 
   <main class="main">
+
     <!-- ═══ DASHBOARD ═══ -->
     <div class="page active" id="page-overview">
       <div class="page-header">
@@ -61,7 +102,7 @@
         <div class="card blue-accent"><div class="stat-label">Deliveries</div><div class="stat-value" id="statDeliveries">0</div><div class="stat-sub">Loads received</div></div>
         <div class="card red-accent"><div class="stat-label">Delay Events</div><div class="stat-value red" id="statDelays">0</div><div class="stat-sub">Logged today</div></div>
       </div>
-      <div class="card" id="hireAlertCard" style="display:none; cursor:pointer; margin-bottom:24px; border-left: 3px solid var(--amber);" onclick="showPage('toolhire', document.getElementById('navToolHire'))">
+      <div class="card" id="hireAlertCard" style="display:none; cursor:pointer; margin-bottom:24px; border-left:3px solid var(--amber);" onclick="showPage('toolhire', document.getElementById('navToolHire'))">
         <div class="stat-label">Tool Hire Alert</div>
         <div class="stat-value amber" id="statToolsNearing" style="font-size:18px;">0</div>
         <div class="stat-sub">Items nearing or past expected off-hire date. Click to review.</div>
@@ -69,9 +110,7 @@
       <div class="cards-row col2">
         <div class="card">
           <div class="stat-label" style="margin-bottom:14px;">Daily Activities</div>
-          <div style="display:flex;align-items:flex-start;gap:20px;">
-            <div style="flex:1;font-size:12px;color:var(--text-dim);line-height:1.6;" id="activitySummaryList">No activities recorded today.</div>
-          </div>
+          <div style="flex:1;font-size:12px;color:var(--text-dim);line-height:1.6;" id="activitySummaryList">No activities recorded today.</div>
         </div>
         <div class="card">
           <div class="stat-label" style="margin-bottom:14px;">Activity Feed</div>
@@ -91,7 +130,7 @@
 
     <!-- ═══ SITE INFO ═══ -->
     <div class="page" id="page-siteinfo">
-      <div class="page-header"><div><h1>SITE <span>INFORMATION</span></h1><p>Project details &amp; contract reference data</p></div></div>
+      <div class="page-header"><div><h1>SITE <span>INFORMATION</span></h1><p>Project details &amp; contract reference data — saved with project</p></div></div>
       <div class="form-section">
         <div class="form-section-header"><div class="section-icon">🏗️</div><h3>Project Details</h3></div>
         <div class="form-section-body">
@@ -104,9 +143,7 @@
             <div class="form-group"><label>Contract No.</label><input type="text" id="contractNo" placeholder="e.g. VDLV-2024-017"/></div>
             <div class="form-group"><label>Employer</label><input type="text" id="employer" placeholder="e.g. SARB / City of Tshwane"/></div>
             <div class="form-group"><label>Contract Form</label>
-              <select id="contractForm">
-                <!-- Populated by data/contracts.js -->
-              </select>
+              <select id="contractForm"><!-- Populated by data/contracts.js --></select>
             </div>
           </div>
         </div>
@@ -155,29 +192,17 @@
       <div class="page-header"><div><h1>TOOL <span>HIRE</span></h1><p>Hired tools register · daily status &amp; off-hire tracking</p></div></div>
       <div class="form-section">
         <div class="form-section-header"><div class="section-icon">🔧</div><h3>Tool Hire Register</h3></div>
-        <div class="form-section-body" style="overflow-x: auto;">
-          <table class="labour-table" style="min-width: 800px;">
+        <div class="form-section-body" style="overflow-x:auto;">
+          <table class="labour-table" style="min-width:800px;">
             <thead><tr>
-              <th>Tool Description</th>
-              <th style="width:70px;">Qty</th>
-              <th>Supplier</th>
-              <th style="width:130px;">Hire In</th>
-              <th style="width:130px;">Expected Off-hire</th>
-              <th style="width:130px;">Actual Off-hire</th>
-              <th style="width:140px;">Reason for Hire</th>
-              <th style="width:90px;">Status</th>
-              <th>Notes</th>
-              <th style="width:36px;"></th>
+              <th>Tool Description</th><th style="width:70px;">Qty</th><th>Supplier</th>
+              <th style="width:130px;">Hire In</th><th style="width:130px;">Expected Off-hire</th>
+              <th style="width:130px;">Actual Off-hire</th><th style="width:140px;">Reason for Hire</th>
+              <th style="width:90px;">Status</th><th>Notes</th><th style="width:36px;"></th>
             </tr></thead>
             <tbody id="toolHireBody"></tbody>
           </table>
           <button class="btn-add" onclick="addToolHireRow()">+ Add Hired Tool</button>
-          <div style="margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 6px rgba(82,201,122,0.5);"></span>Active</div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);display:inline-block;"></span>Nearing Off-hire</div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block;box-shadow:0 0 6px rgba(224,82,82,0.5);"></span>Overdue</div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);"><span style="width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block;"></span>Returned</div>
-          </div>
         </div>
       </div>
     </div>
@@ -264,8 +289,8 @@
         <div class="card" style="cursor:pointer;text-align:center;" onclick="downloadPDF()">
           <div style="font-size:28px;margin-bottom:8px;">📥</div><div style="font-size:12px;font-weight:600;color:var(--gold);">Download Full PDF</div><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Comprehensive multi-page report</div>
         </div>
-        <div class="card" style="cursor:pointer;text-align:center;" onclick="clearAll()">
-          <div style="font-size:28px;margin-bottom:8px;">🔄</div><div style="font-size:12px;font-weight:600;color:var(--text);">Reset for New Day</div><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Clear all entries</div>
+        <div class="card" style="cursor:pointer;text-align:center;" onclick="resetForNewDay()">
+          <div style="font-size:28px;margin-bottom:8px;">🔄</div><div style="font-size:12px;font-weight:600;color:var(--text);">Reset for New Day</div><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Clear daily data, keep site info</div>
         </div>
       </div>
       <div class="form-section">
@@ -273,12 +298,38 @@
         <div class="form-section-body"><div class="report-preview" id="reportPreview">Click "Generate Report" to compile today's entries into a structured daily site report.</div></div>
       </div>
     </div>
+
   </main>
 </div>
 
+<!-- ═══ CREATE PROJECT MODAL ═══ -->
+<div class="modal-backdrop" id="createProjectModal" onclick="closeCreateProjectModal()">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>New Project</h3>
+      <button class="modal-close" onclick="closeCreateProjectModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Project Name</label>
+        <input type="text" id="newProjectNameInput" placeholder="e.g. SARB HQ Phase 2" onkeydown="if(event.key==='Enter')submitCreateProject()"/>
+      </div>
+      <p id="createProjectError" style="color:var(--red);font-size:12px;margin-top:8px;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeCreateProjectModal()">Cancel</button>
+      <button class="btn-save" id="createProjectBtn" onclick="submitCreateProject()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
 <div class="toast" id="toast"><span>✓</span><span id="toastMsg">Saved</span></div>
 
-<!-- Scripts loaded in dependency order -->
+<!-- ── Scripts (dependency order) ─────────────────── -->
+<script src="js/lib/supabaseClient.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/projects.js"></script>
 <script src="data/contracts.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/modules/weather.js"></script>
@@ -291,6 +342,7 @@
 <script src="js/modules/report.js"></script>
 <script src="js/modules/pdf-export.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

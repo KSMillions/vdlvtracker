@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VDLV | Sign In</title>
+<meta name="description" content="Sign in to the VDLV Site Activity Tracker."/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/styles.css"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/lib/supabaseClient.js"></script>
+<style>
+  /* ── Login page overrides ────────────────────────── */
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    background: radial-gradient(ellipse at 30% 20%, rgba(201,168,76,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(201,168,76,0.05) 0%, transparent 60%),
+                var(--black); }
+
+  .login-card {
+    width: 100%; max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.08);
+    animation: fadeIn 0.35s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+  .login-logo { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+  .login-logo-mark {
+    background: var(--black); width: 44px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; box-shadow: 0 0 14px rgba(201,168,76,0.25);
+  }
+  .login-logo-mark span { color: var(--gold); font-family: Helvetica,Arial,sans-serif; font-size: 38px; font-weight: 900; letter-spacing: -4px; line-height: 1; margin-left:-2px; margin-top:2px; }
+  .login-logo-text strong { font-family: 'Bebas Neue',sans-serif; font-size: 20px; letter-spacing: 0.12em; color: var(--gold); display:block; }
+  .login-logo-text small  { font-size: 9px; letter-spacing: 0.2em; color: var(--text-muted); text-transform: uppercase; }
+
+  .login-title { font-family: 'Bebas Neue',sans-serif; font-size: 28px; color: var(--text); letter-spacing: 0.06em; margin-bottom: 4px; }
+  .login-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+
+  .login-form .form-group { margin-bottom: 16px; }
+  .login-form label { display: block; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+  .login-form input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans',sans-serif; font-size: 14px; padding: 12px 14px; outline: none; transition: border-color 0.15s; }
+  .login-form input:focus { border-color: var(--gold-dim); }
+
+  .btn-login {
+    width: 100%; background: var(--gold); color: var(--black);
+    border: none; font-family: 'DM Sans',sans-serif; font-weight: 700;
+    font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 13px; border-radius: 8px; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    margin-top: 8px; position: relative;
+  }
+  .btn-login:hover { background: var(--gold-light); }
+  .btn-login:active { transform: scale(0.99); }
+  .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .login-error {
+    background: rgba(224,82,82,0.1); border: 1px solid rgba(224,82,82,0.3);
+    border-radius: 6px; padding: 10px 14px; font-size: 12px;
+    color: var(--red); margin-bottom: 16px; display: none;
+  }
+  .login-error.show { display: block; }
+
+  .login-footer { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; }
+  .login-footer p { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+
+  .spinner-ring { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.3); border-top-color: var(--black); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="login-card" id="loginCard">
+  <div class="login-logo">
+    <div class="login-logo-mark"><span>VV</span></div>
+    <div class="login-logo-text">
+      <strong>VDLV PROJECTS</strong>
+      <small>Site Activity Tracker</small>
+    </div>
+  </div>
+
+  <div class="login-title">Sign In</div>
+  <div class="login-subtitle">Secure access · Invite-only platform</div>
+
+  <div class="login-error" id="loginError"></div>
+
+  <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label for="loginEmail">Email Address</label>
+      <input type="email" id="loginEmail" placeholder="you@vdlvprojects.co.za" autocomplete="email" required/>
+    </div>
+    <div class="form-group">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••••" autocomplete="current-password" required/>
+    </div>
+    <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+  </form>
+
+  <div class="login-footer">
+    <p>This platform is invite-only.<br>Contact your administrator to request access.</p>
+    <p style="margin-top:10px;color:var(--text-muted);font-size:10px;">v2.0 · VDLV Projects (Pty) Ltd</p>
+  </div>
+</div>
+
+<script>
+  // Auto-redirect if already signed in
+  (async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) window.location.href = 'index.html';
+  })();
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const btn      = document.getElementById('loginBtn');
+    const errEl    = document.getElementById('loginError');
+
+    errEl.classList.remove('show');
+    btn.disabled     = true;
+    btn.innerHTML    = '<span class="spinner-ring"></span>Signing in…';
+
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      window.location.href = 'index.html';
+    } catch (err) {
+      errEl.textContent = err.message || 'Sign in failed. Check your credentials.';
+      errEl.classList.add('show');
+      btn.disabled  = false;
+      btn.innerHTML = 'Sign In';
+    }
+  }
+</script>
+</body>
+</html>
