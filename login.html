@@ -40,10 +40,21 @@
   .login-title { font-family: 'Bebas Neue',sans-serif; font-size: 28px; color: var(--text); letter-spacing: 0.06em; margin-bottom: 4px; }
   .login-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
 
+  .invite-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 20px;
+    font-size: 12px; color: var(--gold);
+  }
+  .invite-badge svg { flex-shrink: 0; }
+
   .login-form .form-group { margin-bottom: 16px; }
   .login-form label { display: block; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
-  .login-form input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans',sans-serif; font-size: 14px; padding: 12px 14px; outline: none; transition: border-color 0.15s; }
+  .login-form input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans',sans-serif; font-size: 14px; padding: 12px 14px; outline: none; transition: border-color 0.15s; box-sizing: border-box; }
   .login-form input:focus { border-color: var(--gold-dim); }
+
+  .password-strength { margin-top: 6px; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+  .password-strength-bar { height: 100%; width: 0%; transition: width 0.3s, background 0.3s; border-radius: 2px; }
 
   .btn-login {
     width: 100%; background: var(--gold); color: var(--black);
@@ -64,11 +75,22 @@
   }
   .login-error.show { display: block; }
 
+  .login-success {
+    background: rgba(82,201,122,0.1); border: 1px solid rgba(82,201,122,0.3);
+    border-radius: 6px; padding: 10px 14px; font-size: 12px;
+    color: var(--green, #52c97a); margin-bottom: 16px; display: none;
+  }
+  .login-success.show { display: block; }
+
   .login-footer { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; }
   .login-footer p { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
 
   .spinner-ring { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.3); border-top-color: var(--black); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-state { text-align: center; padding: 20px 0; }
+  .loading-state .big-spinner { width: 32px; height: 32px; border: 3px solid rgba(201,168,76,0.2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+  .loading-state p { font-size: 13px; color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -81,58 +103,239 @@
     </div>
   </div>
 
-  <div class="login-title">Sign In</div>
-  <div class="login-subtitle">Secure access · Invite-only platform</div>
+  <!-- ── Loading state (shown while checking invite token) ── -->
+  <div id="loadingState" class="loading-state">
+    <div class="big-spinner"></div>
+    <p>Verifying your invitation…</p>
+  </div>
 
-  <div class="login-error" id="loginError"></div>
+  <!-- ── Normal sign-in form ── -->
+  <div id="signinView" style="display:none;">
+    <div class="login-title">Sign In</div>
+    <div class="login-subtitle">Secure access · Invite-only platform</div>
 
-  <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
-    <div class="form-group">
-      <label for="loginEmail">Email Address</label>
-      <input type="email" id="loginEmail" placeholder="you@vdlvprojects.co.za" autocomplete="email" required/>
+    <div class="login-error" id="loginError"></div>
+
+    <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="loginEmail">Email Address</label>
+        <input type="email" id="loginEmail" placeholder="you@vdlvprojects.co.za" autocomplete="email" required/>
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="••••••••••" autocomplete="current-password" required/>
+      </div>
+      <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+    </form>
+
+    <div class="login-footer">
+      <p>This platform is invite-only.<br>Contact your administrator to request access.</p>
+      <p style="margin-top:10px;color:var(--text-muted);font-size:10px;">v2.0 · VDLV Projects (Pty) Ltd</p>
     </div>
-    <div class="form-group">
-      <label for="loginPassword">Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••••" autocomplete="current-password" required/>
-    </div>
-    <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
-  </form>
+  </div>
 
-  <div class="login-footer">
-    <p>This platform is invite-only.<br>Contact your administrator to request access.</p>
-    <p style="margin-top:10px;color:var(--text-muted);font-size:10px;">v2.0 · VDLV Projects (Pty) Ltd</p>
+  <!-- ── Set password form (invite / recovery flow) ── -->
+  <div id="setPasswordView" style="display:none;">
+    <div class="invite-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.77a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1.18h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+      You've been invited to VDLV Site Tracker
+    </div>
+
+    <div class="login-title">Set Your Password</div>
+    <div class="login-subtitle" id="inviteEmail" style="margin-bottom:20px;color:var(--gold);font-size:12px;"></div>
+    <div class="login-subtitle">Choose a secure password to activate your account.</div>
+
+    <div class="login-error"   id="setPasswordError"></div>
+    <div class="login-success" id="setPasswordSuccess"></div>
+
+    <form class="login-form" id="setPasswordForm" onsubmit="handleSetPassword(event)">
+      <div class="form-group">
+        <label for="newPassword">New Password</label>
+        <input type="password" id="newPassword" placeholder="Minimum 8 characters" autocomplete="new-password" minlength="8" required oninput="updateStrength(this.value)"/>
+        <div class="password-strength"><div class="password-strength-bar" id="strengthBar"></div></div>
+      </div>
+      <div class="form-group">
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" placeholder="Re-enter your password" autocomplete="new-password" required/>
+      </div>
+      <button type="submit" class="btn-login" id="setPasswordBtn">Activate Account</button>
+    </form>
+
+    <div class="login-footer">
+      <p style="font-size:10px;color:var(--text-muted);">v2.0 · VDLV Projects (Pty) Ltd</p>
+    </div>
   </div>
 </div>
 
 <script>
-  // Auto-redirect if already signed in
-  (async () => {
+// ── Detect mode on load ─────────────────────────────
+(async () => {
+  // Parse hash fragment (legacy invite format: #access_token=...&type=invite)
+  const hash   = Object.fromEntries(
+    window.location.hash.replace('#','').split('&').filter(Boolean)
+      .map(p => p.split('=').map(decodeURIComponent))
+  );
+
+  // Parse query params (PKCE format: ?token_hash=...&type=invite)
+  const params = new URLSearchParams(window.location.search);
+
+  const isInviteHash  = hash.type   === 'invite' && hash.access_token;
+  const isInvitePKCE  = params.get('type') === 'invite' && params.get('token_hash');
+  const isRecovery    = hash.type   === 'recovery' && hash.access_token;
+
+  if (isInviteHash) {
+    // Exchange hash token → session
+    const { data, error } = await supabaseClient.auth.setSession({
+      access_token:  hash.access_token,
+      refresh_token: hash.refresh_token || ''
+    });
+    if (error) {
+      showView('signin');
+      showError('loginError', 'Invitation link is invalid or has expired. Please contact your administrator.');
+    } else {
+      showInviteView(data.session?.user?.email);
+    }
+    // Clear the hash so the token isn't reused
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+
+  } else if (isInvitePKCE) {
+    // Exchange OTP token (PKCE flow)
+    const { data, error } = await supabaseClient.auth.verifyOtp({
+      token_hash: params.get('token_hash'),
+      type: 'invite'
+    });
+    if (error) {
+      showView('signin');
+      showError('loginError', 'Invitation link is invalid or has expired. Please contact your administrator.');
+    } else {
+      showInviteView(data.session?.user?.email);
+    }
+    // Strip query params
+    history.replaceState(null, '', window.location.pathname);
+
+  } else if (isRecovery) {
+    // Password recovery — set session then show set-password form
+    await supabaseClient.auth.setSession({
+      access_token:  hash.access_token,
+      refresh_token: hash.refresh_token || ''
+    });
+    history.replaceState(null, '', window.location.pathname);
+    showInviteView(null, true);
+
+  } else {
+    // Normal flow — check if already signed in
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session) window.location.href = 'index.html';
-  })();
-
-  async function handleLogin(e) {
-    e.preventDefault();
-    const email    = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value;
-    const btn      = document.getElementById('loginBtn');
-    const errEl    = document.getElementById('loginError');
-
-    errEl.classList.remove('show');
-    btn.disabled     = true;
-    btn.innerHTML    = '<span class="spinner-ring"></span>Signing in…';
-
-    try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+    if (session) {
       window.location.href = 'index.html';
-    } catch (err) {
-      errEl.textContent = err.message || 'Sign in failed. Check your credentials.';
-      errEl.classList.add('show');
-      btn.disabled  = false;
-      btn.innerHTML = 'Sign In';
+    } else {
+      showView('signin');
     }
   }
+})();
+
+// ── View helpers ────────────────────────────────────
+
+function showView(name) {
+  document.getElementById('loadingState').style.display    = 'none';
+  document.getElementById('signinView').style.display      = name === 'signin'      ? 'block' : 'none';
+  document.getElementById('setPasswordView').style.display = name === 'setPassword' ? 'block' : 'none';
+}
+
+function showInviteView(email, isRecovery = false) {
+  if (email) document.getElementById('inviteEmail').textContent = email;
+  if (isRecovery) {
+    document.querySelector('#setPasswordView .login-title').textContent = 'Reset Password';
+    document.querySelector('#setPasswordView .invite-badge').style.display = 'none';
+  }
+  showView('setPassword');
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function hideError(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+// ── Password strength meter ─────────────────────────
+
+function updateStrength(val) {
+  const bar = document.getElementById('strengthBar');
+  let score = 0;
+  if (val.length >= 8)  score++;
+  if (val.length >= 12) score++;
+  if (/[A-Z]/.test(val)) score++;
+  if (/[0-9]/.test(val)) score++;
+  if (/[^A-Za-z0-9]/.test(val)) score++;
+  const pct   = (score / 5) * 100;
+  const color = score <= 1 ? '#e05252' : score <= 3 ? '#e0a852' : '#52c97a';
+  bar.style.width      = pct + '%';
+  bar.style.background = color;
+}
+
+// ── Normal sign-in handler ──────────────────────────
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const btn      = document.getElementById('loginBtn');
+  hideError('loginError');
+
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner-ring"></span>Signing in…';
+
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    window.location.href = 'index.html';
+  } catch (err) {
+    showError('loginError', err.message || 'Sign in failed. Check your credentials.');
+    btn.disabled  = false;
+    btn.innerHTML = 'Sign In';
+  }
+}
+
+// ── Set password handler (invite / recovery) ────────
+
+async function handleSetPassword(e) {
+  e.preventDefault();
+  const newPwd     = document.getElementById('newPassword').value;
+  const confirmPwd = document.getElementById('confirmPassword').value;
+  const btn        = document.getElementById('setPasswordBtn');
+
+  hideError('setPasswordError');
+
+  if (newPwd !== confirmPwd) {
+    showError('setPasswordError', 'Passwords do not match.');
+    return;
+  }
+  if (newPwd.length < 8) {
+    showError('setPasswordError', 'Password must be at least 8 characters.');
+    return;
+  }
+
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner-ring"></span>Activating…';
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password: newPwd });
+    if (error) throw error;
+
+    const success = document.getElementById('setPasswordSuccess');
+    success.textContent = 'Account activated! Redirecting you to the dashboard…';
+    success.classList.add('show');
+
+    setTimeout(() => { window.location.href = 'index.html'; }, 1800);
+  } catch (err) {
+    showError('setPasswordError', err.message || 'Failed to set password. The link may have expired.');
+    btn.disabled  = false;
+    btn.innerHTML = 'Activate Account';
+  }
+}
 </script>
 </body>
 </html>

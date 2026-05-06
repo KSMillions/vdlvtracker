@@ -3,6 +3,20 @@
 -- Run this entire script in the Supabase SQL Editor
 -- ═══════════════════════════════════════════════════════
 
+-- ── PATCH: Add site_info column if it doesn't exist yet ─
+-- Safe to run on an existing database — does nothing if column already exists
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'projects'
+      and column_name  = 'site_info'
+  ) then
+    alter table projects add column site_info jsonb default '{}'::jsonb;
+  end if;
+end $$;
+
+
 -- 1. Projects table (persistent site info lives here)
 create table if not exists projects (
   id          uuid primary key default gen_random_uuid(),
