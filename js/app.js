@@ -1,5 +1,5 @@
 /**
- * VDLV Site Tracker — Main Application Orchestrator (v2 — Supabase)
+ * VDLV Site Tracker — Main Application Orchestrator v2.1
  */
 
 // ── Navigation ─────────────────────────────────────
@@ -17,6 +17,9 @@ function showPage(id, el) {
   if (el) el.classList.add('active');
   const sb = document.querySelector('.sidebar');
   if (sb.classList.contains('open')) toggleSidebar();
+
+  // Load team data when navigating to team page
+  if (id === 'team') loadAndRenderTeam();
 }
 
 // ── Sidebar & Dashboard Updates ────────────────────
@@ -25,8 +28,8 @@ function updateSidebar() {
   const agent = document.getElementById('siteAgent').value;
   if (proj)  document.getElementById('sidebarProjectName').textContent = proj;
   if (agent) {
-    document.getElementById('sidebarAgent').textContent   = '👤 ' + agent;
-    document.getElementById('dashAgent').textContent      = agent;
+    document.getElementById('sidebarAgent').textContent = '👤 ' + agent;
+    document.getElementById('dashAgent').textContent    = agent;
   }
 }
 
@@ -43,7 +46,6 @@ function saveDailyLog() {
 }
 
 // ── New Day Reset ───────────────────────────────────
-// Clears DAILY data only — site info persists in project record
 function resetForNewDay() {
   if (!confirm('Reset daily entries for a new day?\n\nSite information (project name, employer, contract) will be kept.\nLabour, plant, materials, activities and delays will be cleared.')) return;
 
@@ -65,7 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 1. Auth guard — redirect to login if not signed in
   showLoadingOverlay(true);
   const user = await guardAuth();
-  if (!user) return; // guardAuth handles redirect
+  if (!user) return;
 
   // 2. Render user email badge + week/date info
   renderUserBadge(user);
@@ -76,8 +78,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('dashboardDate').textContent =
     today.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const weekNum = getWeekNumber(today);
-  document.getElementById('weekDisplay').textContent  = 'W' + weekNum;
-  document.getElementById('sidebarWeek').textContent  = '📅 Week ' + weekNum;
+  document.getElementById('weekDisplay').textContent = 'W' + weekNum;
+  document.getElementById('sidebarWeek').textContent = '📅 Week ' + weekNum;
 
   // 3. Populate contract dropdown
   const contractSelect = document.getElementById('contractForm');
@@ -86,23 +88,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 4. Load user's projects
-  const projects = await loadMyProjects();
-  const lastProjectId = getActiveProjectId();
+  const projects       = await loadMyProjects();
+  const lastProjectId  = getActiveProjectId();
   const defaultProject = projects.find(p => p.id === lastProjectId) || projects[0];
 
   renderProjectSwitcher(projects, defaultProject?.id);
 
   if (defaultProject) {
     setActiveProject(defaultProject.id);
+
+    // 5. Load role for this project and apply role-based UI
+    const role = await getCurrentUserRole(defaultProject.id);
+    _currentUserRole = role;
+    applyRoleBasedUI();
+
     await loadProjectData(defaultProject.id);
   } else {
     showLoadingOverlay(false);
-    // Show empty state prompt to create first project
     showPage('overview', document.querySelector('.nav-item'));
     showToast('Welcome! Create your first project using the sidebar.');
+    applyRoleBasedUI();
   }
 
-  // 5. Start auto-save (every 6 hours + on visibility change)
+  // 6. Start auto-save (every 6 hours + on visibility change)
   startAutoSave();
 
   showLoadingOverlay(false);

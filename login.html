@@ -128,6 +128,26 @@
       <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
     </form>
 
+    <div style="text-align:center;margin-top:14px;">
+      <button onclick="showForgotPassword()" style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px;">Forgot password?</button>
+    </div>
+
+    <!-- Forgot password form (hidden by default) -->
+    <div id="forgotPasswordView" style="display:none;margin-top:16px;">
+      <div class="login-error" id="resetError"></div>
+      <div class="login-success" id="resetSuccess"></div>
+      <form class="login-form" id="resetForm" onsubmit="handleForgotPassword(event)">
+        <div class="form-group">
+          <label for="resetEmail">Email Address</label>
+          <input type="email" id="resetEmail" placeholder="you@vdlvprojects.co.za" required/>
+        </div>
+        <button type="submit" class="btn-login" id="resetBtn">Send Reset Link</button>
+      </form>
+      <div style="text-align:center;margin-top:10px;">
+        <button onclick="hideForgotPassword()" style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;text-decoration:underline;">← Back to Sign In</button>
+      </div>
+    </div>
+
     <div class="login-footer">
       <p>This platform is invite-only.<br>Contact your administrator to request access.</p>
       <p style="margin-top:10px;color:var(--text-muted);font-size:10px;">v2.0 · VDLV Projects (Pty) Ltd</p>
@@ -334,6 +354,51 @@ async function handleSetPassword(e) {
     showError('setPasswordError', err.message || 'Failed to set password. The link may have expired.');
     btn.disabled  = false;
     btn.innerHTML = 'Activate Account';
+  }
+}
+
+// ── Forgot Password helpers ──────────────────────────
+
+function showForgotPassword() {
+  document.getElementById('loginForm').style.display          = 'none';
+  document.querySelector('[onclick="showForgotPassword()"]').style.display = 'none';
+  document.getElementById('forgotPasswordView').style.display = 'block';
+}
+
+function hideForgotPassword() {
+  document.getElementById('loginForm').style.display          = 'block';
+  document.querySelector('[onclick="showForgotPassword()"]').style.display = 'block';
+  document.getElementById('forgotPasswordView').style.display = 'none';
+  document.getElementById('resetError').classList.remove('show');
+  document.getElementById('resetSuccess').classList.remove('show');
+  document.getElementById('resetEmail').value = '';
+}
+
+async function handleForgotPassword(e) {
+  e.preventDefault();
+  const email = document.getElementById('resetEmail').value.trim();
+  const btn   = document.getElementById('resetBtn');
+  document.getElementById('resetError').classList.remove('show');
+  document.getElementById('resetSuccess').classList.remove('show');
+
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner-ring"></span>Sending…';
+
+  try {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://vdlvtracker.vercel.app/login.html'
+    });
+    if (error) throw error;
+    const s = document.getElementById('resetSuccess');
+    s.textContent = 'Reset link sent! Check your inbox and click the link to set a new password.';
+    s.classList.add('show');
+    btn.innerHTML = 'Sent ✓';
+  } catch (err) {
+    const el = document.getElementById('resetError');
+    el.textContent = err.message || 'Failed to send reset email.';
+    el.classList.add('show');
+    btn.disabled  = false;
+    btn.innerHTML = 'Send Reset Link';
   }
 }
 </script>

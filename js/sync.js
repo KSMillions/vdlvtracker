@@ -50,7 +50,7 @@ async function saveToCloud() {
       contractForm: state.siteInfo.contractForm
     });
 
-    // 2. Upsert daily data — one row per project, overwritten each day
+    // 2. Upsert daily data — one row per project per day (history preserved)
     const { error } = await supabaseClient
       .from('daily_logs')
       .upsert({
@@ -67,7 +67,7 @@ async function saveToCloud() {
         },
         updated_by:  user?.id,
         updated_at:  new Date().toISOString()
-      }, { onConflict: 'project_id' });
+      }, { onConflict: 'project_id,log_date' });
 
     if (error) throw error;
 
@@ -101,12 +101,14 @@ async function loadFromCloud(projectId) {
     updateSidebar();
   }
 
-  // -- Load today's daily log data
+  // -- Load today's daily log data (filtered by today's date)
+  const today = new Date().toISOString().split('T')[0];
   const { data, error } = await supabaseClient
     .from('daily_logs')
     .select('*')
     .eq('project_id', projectId)
-    .maybeSingle(); // returns null if no row, not an error
+    .eq('log_date', today)
+    .maybeSingle(); // returns null if no row for today, not an error
 
   if (error) {
     console.error('loadFromCloud error:', error);

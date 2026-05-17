@@ -1,11 +1,12 @@
 /**
- * VDLV Site Tracker — Projects Module
- * Handles project loading, creation, and the sidebar project switcher.
+ * VDLV Site Tracker — Projects Module v2.1
+ * Handles project loading, creation, switching, and team management.
  * Site information (employer, contract no., etc.) persists in the project record.
  */
 
-let _projects = [];
+let _projects       = [];
 let _activeProjectId = null;
+let _currentUserRole = null; // 'admin' | 'member' for the active project
 
 // ── Project CRUD ────────────────────────────────────
 
@@ -24,7 +25,7 @@ async function createProject(name) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Insert project
+  // Insert project record
   const { data: proj, error: projErr } = await supabaseClient
     .from('projects')
     .insert({ name: name.trim(), created_by: user.id, site_info: {} })
@@ -41,6 +42,7 @@ async function createProject(name) {
   if (memberErr) console.error('Member insert error:', memberErr);
 
   _projects.unshift(proj);
+  _currentUserRole = 'admin'; // Creator is always admin
   return proj;
 }
 
@@ -51,6 +53,60 @@ async function updateProjectSiteInfo(projectId, siteInfo) {
     .eq('id', projectId);
 
   if (error) console.error('updateProjectSiteInfo error:', error);
+}
+
+// ── Role Management ─────────────────────────────────
+
+/**
+ * Returns 'admin' | 'member' | null for the current user in a given project.
+ */
+async function getCurrentUserRole(projectId) {
+  const { data, error } = await supabaseClient
+    .from('project_members')
+    .select('role')
+    .eq('project_id', projectId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data.role;
+}
+
+/**
+ * Loads all members of a project (admin only — calls get_project_members RPC).
+ */
+async function loadProjectMembers(projectId) {
+  const { data, error } = await supabaseClient
+    .rpc('get_project_members', { p_project_id: projectId });
+
+  if (error) {
+    console.error('loadProjectMembers error:', error);
+    return [];
+  }
+  return data || [];
+}
+
+/**
+ * Update a member's role (admin only).
+ */
+async function updateMemberRole(memberId, newRole) {
+  const { error } = await supabaseClient
+    .from('project_members')
+    .update({ role: newRole })
+    .eq('id', memberId);
+
+  if (error) throw error;
+}
+
+/**
+ * Remove a member from a project (admin only).
+ */
+async function removeMember(memberId) {
+  const { error } = await supabaseClient
+    .from('project_members')
+    .delete()
+    .eq('id', memberId);
+
+  if (error) throw error;
 }
 
 // ── Active Project State ────────────────────────────
@@ -75,6 +131,10 @@ function getAllProjects() {
   return _projects;
 }
 
+function getActiveUserRole() {
+  return _currentUserRole;
+}
+
 // ── Project Switcher UI ─────────────────────────────
 
 function renderProjectSwitcher(projects, activeId) {
@@ -84,7 +144,6 @@ function renderProjectSwitcher(projects, activeId) {
   if (projects.length === 0) {
     container.innerHTML = `
       <div class="no-projects-msg">No projects yet.<br>Click <strong>+ New Project</strong> to start.</div>`;
-    // Update sidebar card
     document.getElementById('sidebarProjectName').textContent = 'No project selected';
     return;
   }
@@ -97,7 +156,6 @@ function renderProjectSwitcher(projects, activeId) {
       `).join('')}
     </select>`;
 
-  // Update sidebar project name card
   if (active) {
     document.getElementById('sidebarProjectName').textContent = active.name;
   }
@@ -107,11 +165,15 @@ async function onProjectSwitch(projectId) {
   if (projectId === getActiveProjectId()) return;
   setActiveProject(projectId);
 
-  // Update sidebar project name immediately
   const proj = getActiveProject();
   if (proj) document.getElementById('sidebarProjectName').textContent = proj.name;
 
   showLoadingOverlay(true);
+
+  // Load role for new project
+  _currentUserRole = await getCurrentUserRole(projectId);
+  applyRoleBasedUI();
+
   await loadProjectData(projectId);
   showLoadingOverlay(false);
   showToast('Project loaded: ' + (proj?.name || ''));
@@ -132,14 +194,14 @@ function closeCreateProjectModal() {
 
 async function submitCreateProject() {
   const nameInput = document.getElementById('newProjectNameInput');
-  const errorEl = document.getElementById('createProjectError');
-  const name = nameInput.value.trim();
+  const errorEl   = document.getElementById('createProjectError');
+  const name      = nameInput.value.trim();
 
   if (!name) { errorEl.textContent = 'Please enter a project name.'; return; }
 
   const btn = document.getElementById('createProjectBtn');
   btn.textContent = 'Creating...';
-  btn.disabled = true;
+  btn.disabled    = true;
 
   try {
     const proj = await createProject(name);
@@ -148,11 +210,94 @@ async function submitCreateProject() {
     setActiveProject(proj.id);
     clearFormForNewProject();
     document.getElementById('sidebarProjectName').textContent = proj.name;
+    applyRoleBasedUI();
     showToast('Project "' + proj.name + '" created ✓');
   } catch (err) {
     errorEl.textContent = err.message || 'Failed to create project.';
   } finally {
     btn.textContent = 'Create';
-    btn.disabled = false;
+    btn.disabled    = false;
+  }
+}
+
+// ── Role-Based UI ───────────────────────────────────
+
+/**
+ * Show or hide admin-only UI elements based on _currentUserRole.
+ */
+function applyRoleBasedUI() {
+  const isAdmin = _currentUserRole === 'admin';
+
+  // Role badge in header
+  const roleBadge = document.getElementById('userRoleBadge');
+  if (roleBadge) {
+    roleBadge.textContent  = isAdmin ? 'Admin' : 'Site Clerk';
+    roleBadge.style.color  = isAdmin ? 'var(--gold)' : 'var(--text-muted)';
+  }
+
+  // Admin-only nav items
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
+}
+
+// ── Team Panel ──────────────────────────────────────
+
+async function loadAndRenderTeam() {
+  const projectId = getActiveProjectId();
+  if (!projectId) return;
+
+  const container = document.getElementById('teamMemberList');
+  if (!container) return;
+
+  container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px 0;">Loading team…</div>';
+
+  const members = await loadProjectMembers(projectId);
+
+  if (members.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px 0;">No members found. You may need admin access to view this.</div>';
+    return;
+  }
+
+  container.innerHTML = members.map(m => `
+    <div class="team-member-row" id="tmr-${m.member_id}">
+      <div class="team-member-info">
+        <div class="team-avatar">${m.email.charAt(0).toUpperCase()}</div>
+        <div>
+          <div class="team-email">${m.email}</div>
+          <div class="team-role-badge ${m.role}">${m.role === 'admin' ? '⭐ Admin' : '📋 Site Clerk'}</div>
+        </div>
+      </div>
+      <div class="team-actions admin-only">
+        <select onchange="handleRoleChange('${m.member_id}', this.value)" class="role-select">
+          <option value="admin"  ${m.role === 'admin'  ? 'selected' : ''}>Admin</option>
+          <option value="member" ${m.role === 'member' ? 'selected' : ''}>Site Clerk</option>
+        </select>
+        <button class="btn-remove-member" onclick="handleRemoveMember('${m.member_id}', '${m.email}')" title="Remove member">✕</button>
+      </div>
+    </div>
+  `).join('');
+
+  applyRoleBasedUI();
+}
+
+async function handleRoleChange(memberId, newRole) {
+  try {
+    await updateMemberRole(memberId, newRole);
+    showToast('Role updated ✓');
+  } catch (err) {
+    showToast('⚠️ Failed to update role: ' + err.message);
+  }
+}
+
+async function handleRemoveMember(memberId, email) {
+  if (!confirm(`Remove ${email} from this project?`)) return;
+  try {
+    await removeMember(memberId);
+    const row = document.getElementById('tmr-' + memberId);
+    if (row) row.remove();
+    showToast('Member removed ✓');
+  } catch (err) {
+    showToast('⚠️ Failed to remove member: ' + err.message);
   }
 }

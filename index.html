@@ -37,8 +37,9 @@
       <span id="realtimeDot" style="width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;transition:background 0.3s;"></span>
       <span id="realtimeLabel" style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;">Syncing…</span>
     </div>
-    <!-- User badge -->
+    <!-- User badge with role -->
     <div class="user-badge">
+      <span id="userRoleBadge" style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;margin-right:6px;color:var(--gold);"></span>
       <span id="userEmailBadge" style="font-size:11px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
       <button class="btn-logout" onclick="signOut()" title="Sign out">⟵ Sign Out</button>
     </div>
@@ -58,7 +59,7 @@
       <div id="projectSwitcherContainer" class="project-switcher-wrap">
         <div style="font-size:11px;color:var(--text-muted);padding:8px;">Loading projects…</div>
       </div>
-      <button class="btn-new-project" onclick="openCreateProjectModal()">+ New Project</button>
+      <button class="btn-new-project admin-only" onclick="openCreateProjectModal()">+ New Project</button>
     </div>
 
     <!-- Active project info card -->
@@ -83,6 +84,8 @@
     <div class="nav-item" onclick="showPage('progress', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="9" width="3" height="4" rx="0.5" fill="currentColor"/><rect x="5.5" y="6" width="3" height="7" rx="0.5" fill="currentColor"/><rect x="10" y="2" width="3" height="11" rx="0.5" fill="currentColor"/></svg> Activity Progress</div>
     <div class="nav-item" onclick="showPage('delays', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg> Delays &amp; Events <span class="nav-badge" id="delayBadge" style="background:var(--red);color:#fff;">0</span></div>
     <div class="nav-item" onclick="showPage('report', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M4 5h6M4 7.5h6M4 10h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg> Generate Report</div>
+    <div class="sidebar-label admin-only">Admin</div>
+    <div class="nav-item admin-only" onclick="showPage('team', this)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="4" r="2" fill="currentColor"/><circle cx="10" cy="4" r="1.5" fill="currentColor" opacity=".6"/><path d="M1 12c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M10 8c1.5 0 3 1 3 3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg> Team Management</div>
   </nav>
 
   <main class="main">
@@ -299,6 +302,26 @@
       </div>
     </div>
 
+    <!-- ═══ TEAM PAGE ═══ -->
+    <div class="page" id="page-team">
+      <div class="page-header"><div><h1>TEAM <span>MANAGEMENT</span></h1><p>Project members, roles, and access control</p></div></div>
+      <div class="form-section">
+        <div class="form-section-header"><div class="section-icon">👥</div><h3>Project Members</h3></div>
+        <div class="form-section-body" style="padding:0;">
+          <div id="teamMemberList" style="min-height:60px;">
+            <div style="color:var(--text-muted);font-size:12px;padding:16px;">Select a project to view its team.</div>
+          </div>
+        </div>
+      </div>
+      <div class="invite-info-box">
+        <strong>📧 Inviting New Members</strong><br>
+        New users are invited via the Supabase dashboard or email. Once their account is activated, they will appear here and you can assign their role.<br><br>
+        <strong>Roles explained:</strong><br>
+        ⭐ <strong>Admin</strong> — Full access: create projects, manage team, generate reports<br>
+        📋 <strong>Site Clerk</strong> — Daily log access: labour, plant, materials, activities, delays
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -322,6 +345,48 @@
     </div>
   </div>
 </div>
+
+<!-- Inline Team page injected dynamically -->
+<style>
+/* ── Team Management Page ──────────────────── */
+.team-member-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.team-member-row:last-child { border-bottom: none; }
+.team-member-info { display: flex; align-items: center; gap: 12px; }
+.team-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: var(--gold); flex-shrink: 0;
+}
+.team-email { font-size: 13px; color: var(--text); margin-bottom: 3px; }
+.team-role-badge {
+  display: inline-block; font-size: 10px; letter-spacing: 0.1em;
+  padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+}
+.team-role-badge.admin  { background: rgba(201,168,76,0.12); color: var(--gold); }
+.team-role-badge.member { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+.team-actions { display: flex; align-items: center; gap: 8px; }
+.role-select {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 4px 8px; font-size: 12px;
+}
+.btn-remove-member {
+  background: rgba(224,82,82,0.1); border: 1px solid rgba(224,82,82,0.2);
+  color: var(--red); border-radius: 6px; padding: 4px 10px;
+  cursor: pointer; font-size: 12px; transition: background 0.15s;
+}
+.btn-remove-member:hover { background: rgba(224,82,82,0.2); }
+.invite-info-box {
+  background: rgba(201,168,76,0.06); border: 1px solid rgba(201,168,76,0.2);
+  border-radius: 10px; padding: 16px 20px; margin-top: 20px; font-size: 12px;
+  color: var(--text-muted); line-height: 1.7;
+}
+.invite-info-box strong { color: var(--gold); }
+</style>
 
 <!-- Toast -->
 <div class="toast" id="toast"><span>✓</span><span id="toastMsg">Saved</span></div>
