@@ -25,21 +25,15 @@ async function createProject(name) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Insert project record
-  const { data: proj, error: projErr } = await supabaseClient
-    .from('projects')
-    .insert({ name: name.trim(), created_by: user.id, site_info: {} })
-    .select()
-    .single();
+  // Use the atomic RPC function — creates project + adds admin member
+  // in one transaction, bypassing all RLS timing issues.
+  const { data, error } = await supabaseClient
+    .rpc('create_project', { p_name: name.trim() });
 
-  if (projErr) throw projErr;
+  if (error) throw error;
 
-  // Auto-add creator as admin member
-  const { error: memberErr } = await supabaseClient
-    .from('project_members')
-    .insert({ project_id: proj.id, user_id: user.id, role: 'admin' });
-
-  if (memberErr) console.error('Member insert error:', memberErr);
+  // RPC returns JSON — parse it if needed
+  const proj = typeof data === 'string' ? JSON.parse(data) : data;
 
   _projects.unshift(proj);
   _currentUserRole = 'admin'; // Creator is always admin
