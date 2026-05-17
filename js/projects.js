@@ -221,15 +221,20 @@ async function submitCreateProject() {
  */
 function applyRoleBasedUI() {
   const isAdmin = _currentUserRole === 'admin';
+  const hasProject = _currentUserRole !== null;
 
-  // Role badge in header
+  // Role badge in header — only show when a project is selected
   const roleBadge = document.getElementById('userRoleBadge');
   if (roleBadge) {
-    roleBadge.textContent  = isAdmin ? 'Admin' : 'Site Clerk';
-    roleBadge.style.color  = isAdmin ? 'var(--gold)' : 'var(--text-muted)';
+    if (!hasProject) {
+      roleBadge.textContent = '';
+    } else {
+      roleBadge.textContent = isAdmin ? '⭐ Admin' : 'Site Clerk';
+      roleBadge.style.color = isAdmin ? 'var(--gold)' : 'var(--text-muted)';
+    }
   }
 
-  // Admin-only nav items
+  // Admin-only nav items — hide when no project OR user is not admin
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin ? '' : 'none';
   });
