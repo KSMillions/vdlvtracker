@@ -300,3 +300,87 @@ async function handleRemoveMember(memberId, email) {
     showToast('⚠️ Failed to remove member: ' + err.message);
   }
 }
+
+// ── Add Member Panel ────────────────────────────────
+
+async function openAddMemberPanel() {
+  const panel = document.getElementById('addMemberPanel');
+  const select = document.getElementById('addMemberUserSelect');
+  const projectId = getActiveProjectId();
+
+  // Toggle — if already open, close it
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  select.innerHTML = '<option value="">Loading users…</option>';
+
+  try {
+    // Fetch all Supabase users NOT already in this project
+    const { data, error } = await supabaseClient
+      .rpc('get_available_users', { p_project_id: projectId });
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      select.innerHTML = '<option value="">No available users — all users are already members</option>';
+      return;
+    }
+
+    select.innerHTML = '<option value="">— Select a user —</option>' +
+      data.map(u => `<option value="${u.user_id}">${u.email}</option>`).join('');
+
+  } catch (err) {
+    select.innerHTML = '<option value="">Error loading users</option>';
+    console.error('get_available_users error:', err);
+  }
+}
+
+async function submitAddMember() {
+  const userSelect  = document.getElementById('addMemberUserSelect');
+  const roleSelect  = document.getElementById('addMemberRoleSelect');
+  const errorEl     = document.getElementById('addMemberError');
+  const btn         = document.getElementById('addMemberSubmitBtn');
+  const projectId   = getActiveProjectId();
+
+  const userId = userSelect.value;
+  const role   = roleSelect.value;
+  const email  = userSelect.options[userSelect.selectedIndex]?.text;
+
+  errorEl.style.display = 'none';
+
+  if (!userId) {
+    errorEl.textContent = 'Please select a user.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled    = true;
+  btn.textContent = 'Adding…';
+
+  try {
+    const { error } = await supabaseClient
+      .rpc('add_project_member', {
+        p_project_id: projectId,
+        p_user_id:    userId,
+        p_role:       role
+      });
+
+    if (error) throw error;
+
+    showToast(`${email} added as ${role === 'admin' ? 'Admin' : 'Site Clerk'} ✓`);
+
+    // Close panel and refresh member list
+    document.getElementById('addMemberPanel').style.display = 'none';
+    await loadAndRenderTeam();
+
+  } catch (err) {
+    errorEl.textContent = err.message || 'Failed to add member.';
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Add to Project';
+  }
+}

@@ -304,7 +304,40 @@
 
     <!-- ═══ TEAM PAGE ═══ -->
     <div class="page" id="page-team">
-      <div class="page-header"><div><h1>TEAM <span>MANAGEMENT</span></h1><p>Project members, roles, and access control</p></div></div>
+      <div class="page-header">
+        <div><h1>TEAM <span>MANAGEMENT</span></h1><p>Project members, roles, and access control</p></div>
+        <button class="btn-save admin-only" id="addMemberBtn" onclick="openAddMemberPanel()" style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:18px;line-height:1;">+</span> Add Member
+        </button>
+      </div>
+
+      <!-- Add Member Panel (hidden by default) -->
+      <div class="form-section admin-only" id="addMemberPanel" style="display:none;">
+        <div class="form-section-header"><div class="section-icon">➕</div><h3>Add Member to Project</h3></div>
+        <div class="form-section-body">
+          <div class="form-row col3" style="align-items:flex-end;gap:12px;">
+            <div class="form-group" style="flex:2;">
+              <label>Select User</label>
+              <select id="addMemberUserSelect" style="width:100%;">
+                <option value="">Loading users…</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label>Role</label>
+              <select id="addMemberRoleSelect">
+                <option value="member">📋 Site Clerk</option>
+                <option value="admin">⭐ Admin</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:none;">
+              <button class="btn-save" id="addMemberSubmitBtn" onclick="submitAddMember()" style="width:100%;margin-top:0;">Add to Project</button>
+            </div>
+          </div>
+          <p id="addMemberError" style="color:var(--red);font-size:12px;margin-top:6px;display:none;"></p>
+        </div>
+      </div>
+
+      <!-- Current Members List -->
       <div class="form-section">
         <div class="form-section-header"><div class="section-icon">👥</div><h3>Project Members</h3></div>
         <div class="form-section-body" style="padding:0;">
@@ -313,12 +346,12 @@
           </div>
         </div>
       </div>
+
       <div class="invite-info-box">
-        <strong>📧 Inviting New Members</strong><br>
-        New users are invited via the Supabase dashboard or email. Once their account is activated, they will appear here and you can assign their role.<br><br>
         <strong>Roles explained:</strong><br>
         ⭐ <strong>Admin</strong> — Full access: create projects, manage team, generate reports<br>
-        📋 <strong>Site Clerk</strong> — Daily log access: labour, plant, materials, activities, delays
+        📋 <strong>Site Clerk</strong> — Daily log access: labour, plant, materials, activities, delays<br><br>
+        <strong>New users</strong> must be invited via Supabase first. Once they accept their invite and activate their account, they will appear in the "Select User" dropdown above.
       </div>
     </div>
 
