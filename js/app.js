@@ -87,7 +87,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateContractDropdown(contractSelect);
   }
 
-  // 4. Load user's projects
+  // 4. Check director status first (affects UI and project loading)
+  await checkIsDirector();
+  applyRoleBasedUI(); // Show Director badge immediately if applicable
+
+  // 5. Load user's projects (RLS auto-returns ALL projects for directors)
   const projects       = await loadMyProjects();
   const lastProjectId  = getActiveProjectId();
   const defaultProject = projects.find(p => p.id === lastProjectId) || projects[0];

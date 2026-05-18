@@ -4,9 +4,10 @@
  * Site information (employer, contract no., etc.) persists in the project record.
  */
 
-let _projects       = [];
+let _projects        = [];
 let _activeProjectId = null;
 let _currentUserRole = null; // 'admin' | 'member' for the active project
+let _isDirector      = false; // true = master access to all projects
 
 // ── Project CRUD ────────────────────────────────────
 
@@ -50,6 +51,21 @@ async function updateProjectSiteInfo(projectId, siteInfo) {
 }
 
 // ── Role Management ─────────────────────────────────
+
+/**
+ * Check if current user has director (master) access.
+ * Directors can see ALL projects regardless of membership.
+ */
+async function checkIsDirector() {
+  const { data, error } = await supabaseClient
+    .from('system_roles')
+    .select('role')
+    .maybeSingle();
+  _isDirector = !error && data?.role === 'director';
+  return _isDirector;
+}
+
+function getIsDirector() { return _isDirector; }
 
 /**
  * Returns 'admin' | 'member' | null for the current user in a given project.
@@ -220,21 +236,28 @@ async function submitCreateProject() {
  * Show or hide admin-only UI elements based on _currentUserRole.
  */
 function applyRoleBasedUI() {
-  const isAdmin = _currentUserRole === 'admin';
-  const hasProject = _currentUserRole !== null;
+  // Directors get full admin UI regardless of project role
+  const isAdmin    = _isDirector || _currentUserRole === 'admin';
+  const hasProject = _isDirector || _currentUserRole !== null;
 
-  // Role badge in header — only show when a project is selected
+  // Role badge — three tiers
   const roleBadge = document.getElementById('userRoleBadge');
   if (roleBadge) {
-    if (!hasProject) {
+    if (_isDirector) {
+      roleBadge.textContent = '👑 Director';
+      roleBadge.style.color = 'var(--gold)';
+    } else if (!hasProject) {
       roleBadge.textContent = '';
+    } else if (_currentUserRole === 'admin') {
+      roleBadge.textContent = '⭐ Admin';
+      roleBadge.style.color = 'var(--gold)';
     } else {
-      roleBadge.textContent = isAdmin ? '⭐ Admin' : 'Site Clerk';
-      roleBadge.style.color = isAdmin ? 'var(--gold)' : 'var(--text-muted)';
+      roleBadge.textContent = 'Site Clerk';
+      roleBadge.style.color = 'var(--text-muted)';
     }
   }
 
-  // Admin-only nav items — hide when no project OR user is not admin
+  // Show/hide admin-only UI elements
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin ? '' : 'none';
   });
