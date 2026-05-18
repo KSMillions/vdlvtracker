@@ -226,16 +226,17 @@ async function _buildAndDownloadPDF() {
   function drawLabelValue(label, value, indent = 0) {
     checkSpace(16);
     const x = MARGIN + indent;
-    currentPage.drawText(label, { x, y: curY, size: 9, font: fontBold, color: vdlvBlack });
-    const lw = fontBold.widthOfTextAtSize(label, 9);
-    currentPage.drawText(' ' + value, { x: x + lw, y: curY, size: 9, font: fontRegular, color: textGrey });
+    currentPage.drawText(sanitize(label), { x, y: curY, size: 9, font: fontBold, color: vdlvBlack });
+    const lw = fontBold.widthOfTextAtSize(sanitize(label), 9);
+    currentPage.drawText(' ' + sanitize(value), { x: x + lw, y: curY, size: 9, font: fontRegular, color: textGrey });
     curY -= 16;
   }
 
   function drawText(text, size = 9, indent = 0, color = textGrey) {
-    // Handle long text by wrapping
+    // Auto-sanitize: catches ALL special chars including hardcoded ones
+    const safe = sanitize(text || '');
     const maxW = CONTENT_W - indent;
-    const words = text.split(' ');
+    const words = safe.split(' ');
     let line = '';
     for (const word of words) {
       const test = line ? line + ' ' + word : word;
@@ -260,7 +261,7 @@ async function _buildAndDownloadPDF() {
     currentPage.drawRectangle({ x: MARGIN, y: curY - 12, width: CONTENT_W, height: 16, color: sectionBg });
     let x = MARGIN + 4;
     for (const col of cols) {
-      currentPage.drawText(col.label, { x, y: curY - 8, size: 7, font: fontBold, color: vdlvBlack });
+      currentPage.drawText(sanitize(col.label), { x, y: curY - 8, size: 7, font: fontBold, color: vdlvBlack });
       x += col.width;
     }
     curY -= 18;
@@ -271,7 +272,7 @@ async function _buildAndDownloadPDF() {
     let x = MARGIN + 4;
     currentPage.drawLine({ start: { x: MARGIN, y: curY - 2 }, end: { x: PAGE_W - MARGIN, y: curY - 2 }, thickness: 0.3, color: lightGrey });
     for (let i = 0; i < cols.length; i++) {
-      const val = (values[i] || '').substring(0, Math.floor(cols[i].width / 4.5));
+      const val = sanitize(values[i] || '').substring(0, Math.floor(cols[i].width / 4.5));
       currentPage.drawText(val, { x, y: curY + 2, size: 8, font: fontRegular, color: textGrey });
       x += cols[i].width;
     }
@@ -426,7 +427,7 @@ async function _buildAndDownloadPDF() {
         drawText(a.desc, 8, 12, textGrey);
       }
       if (a.note) {
-        drawText('→ Next: ' + a.note, 8, 12, rgb(0.4, 0.4, 0.6));
+        drawText('-> Next: ' + a.note, 8, 12, rgb(0.4, 0.4, 0.6));
       }
       curY -= 6;
     });
