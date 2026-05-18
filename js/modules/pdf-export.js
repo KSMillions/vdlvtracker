@@ -1,55 +1,95 @@
 /**
  * VDLV Site Tracker — Full Comprehensive PDF Export
- * 
- * Generates a multi-page A4 PDF with ALL captured data:
- * - Cover page with VDLV branding
- * - Site Information & Contract Details
- * - Weather & Site Conditions
- * - Labour Log (full table)
- * - Plant & Equipment Register
- * - Tool Hire Register
- * - Material Deliveries
- * - Activity Progress (all with descriptions)
- * - Delays & Events
- * - Declaration & Signature block
  */
+
+/**
+ * Sanitize text for pdf-lib StandardFonts (Helvetica = WinAnsi / Latin-1 only).
+ * Converts smart quotes, dashes, accented chars, and anything non-Latin-1
+ * into safe ASCII equivalents so pdf-lib never throws a character encoding error.
+ */
+function sanitize(val) {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    // Smart / curly quotes
+    .replace(/[\u2018\u2019\u02BC]/g, "'")
+    .replace(/[\u201C\u201D\u00AB\u00BB]/g, '"')
+    // Dashes
+    .replace(/[\u2013\u2014\u2015]/g, '-')
+    // Ellipsis
+    .replace(/\u2026/g, '...')
+    // Bullet
+    .replace(/[\u2022\u2023\u25E6\u2043]/g, '-')
+    // Common accented characters -> ASCII approximation
+    .replace(/[\xC0-\xC5\u0100\u0102]/g, 'A')
+    .replace(/[\xE0-\xE5\u0101\u0103]/g, 'a')
+    .replace(/[\xC8-\xCB\u0112\u0114]/g, 'E')
+    .replace(/[\xE8-\xEB\u0113\u0115]/g, 'e')
+    .replace(/[\xCC-\xCF\u012C]/g, 'I')
+    .replace(/[\xEC-\xEF\u012D]/g, 'i')
+    .replace(/[\xD2-\xD6\u014C\u014E]/g, 'O')
+    .replace(/[\xF2-\xF6\u014D\u014F]/g, 'o')
+    .replace(/[\xD9-\xDC\u016A\u016C]/g, 'U')
+    .replace(/[\xF9-\xFC\u016B\u016D]/g, 'u')
+    .replace(/\xD1/g, 'N').replace(/\xF1/g, 'n')
+    .replace(/\xC7/g, 'C').replace(/\xE7/g, 'c')
+    // Strip any remaining non-Latin-1 chars
+    .replace(/[^\x00-\xFF]/g, '?')
+    // Clean up control chars
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+}
 
 async function downloadPDF() {
   if (typeof PDFLib === 'undefined') {
-    showToast('PDF library not loaded. Check internet connection.');
+    showToast('\u26A0\uFE0F PDF library not loaded. Check internet connection.');
     return;
   }
 
+  // Show loading state on the button
+  const pdfBtn = document.getElementById('pdfDownloadBtn');
+  const origLabel = pdfBtn ? pdfBtn.innerHTML : null;
+  if (pdfBtn) { pdfBtn.innerHTML = '\u23F3 Building PDF...'; pdfBtn.disabled = true; }
+
+  try {
+    await _buildAndDownloadPDF();
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    showToast('\u274C PDF failed: ' + (err.message || 'Unknown error. Check console.'));
+  } finally {
+    if (pdfBtn) { pdfBtn.innerHTML = origLabel; pdfBtn.disabled = false; }
+  }
+}
+
+async function _buildAndDownloadPDF() {
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
 
-  // ── Gather all data ──────────────────────────────
-  const proj = document.getElementById('projectName').value || 'Unspecified Project';
-  const date = document.getElementById('logDate').value || new Date().toISOString().split('T')[0];
-  const contract = document.getElementById('contractNo').value || '—';
-  const employer = document.getElementById('employer').value || '—';
-  const agent = document.getElementById('siteAgent').value || '—';
+  // ── Gather all data (sanitized) ──────────────────
+  const proj     = sanitize(document.getElementById('projectName')?.value) || 'Unspecified Project';
+  const date     = sanitize(document.getElementById('logDate')?.value) || new Date().toISOString().split('T')[0];
+  const contract = sanitize(document.getElementById('contractNo')?.value) || '-';
+  const employer = sanitize(document.getElementById('employer')?.value) || '-';
+  const agent    = sanitize(document.getElementById('siteAgent')?.value) || '-';
   const contractFormEl = document.getElementById('contractForm');
-  const contractLabel = contractFormEl ? (contractFormEl.selectedOptions[0]?.textContent || '—') : '—';
-  const totalLabour = document.getElementById('totalLabour').textContent;
-  const plantActive = document.getElementById('statPlant').textContent;
-  const totalDeliveries = document.getElementById('statDeliveries').textContent;
-  const totalDelays = document.getElementById('statDelays').textContent;
-  const wAM = weatherState.AM || 'Not recorded';
-  const wPM = weatherState.PM || 'Not recorded';
-  const workable = document.getElementById('workPossible').value || 'Not recorded';
-  const rain = document.getElementById('rainfall').value || '0';
-  const temp = document.getElementById('temperature').value || '—';
+  const contractLabel  = sanitize(contractFormEl?.selectedOptions[0]?.textContent) || '-';
+  const totalLabour    = sanitize(document.getElementById('totalLabour')?.textContent);
+  const plantActive    = sanitize(document.getElementById('statPlant')?.textContent);
+  const totalDeliveries = sanitize(document.getElementById('statDeliveries')?.textContent);
+  const totalDelays    = sanitize(document.getElementById('statDelays')?.textContent);
+  const wAM    = sanitize(weatherState?.AM) || 'Not recorded';
+  const wPM    = sanitize(weatherState?.PM) || 'Not recorded';
+  const workable = sanitize(document.getElementById('workPossible')?.value) || 'Not recorded';
+  const rain   = sanitize(document.getElementById('rainfall')?.value) || '0';
+  const temp   = sanitize(document.getElementById('temperature')?.value) || '-';
 
   // Labour data
   const labourRows = [];
   document.querySelectorAll('#labourBody tr').forEach(tr => {
     const inputs = tr.querySelectorAll('input, select');
     labourRows.push({
-      trade: inputs[0]?.value || '',
-      contractor: inputs[1]?.value || '',
-      count: inputs[2]?.value || '0',
-      hours: inputs[3]?.value || '',
-      status: inputs[4]?.value || ''
+      trade:      sanitize(inputs[0]?.value),
+      contractor: sanitize(inputs[1]?.value),
+      count:      sanitize(inputs[2]?.value) || '0',
+      hours:      sanitize(inputs[3]?.value),
+      status:     sanitize(inputs[4]?.value)
     });
   });
 
@@ -58,11 +98,11 @@ async function downloadPDF() {
   document.querySelectorAll('#plantBody tr').forEach(tr => {
     const inputs = tr.querySelectorAll('input, select');
     plantRows.push({
-      name: inputs[0]?.value || '',
-      regId: inputs[1]?.value || '',
-      operator: inputs[2]?.value || '',
-      hours: inputs[3]?.value || '',
-      status: inputs[4]?.value || ''
+      name:     sanitize(inputs[0]?.value),
+      regId:    sanitize(inputs[1]?.value),
+      operator: sanitize(inputs[2]?.value),
+      hours:    sanitize(inputs[3]?.value),
+      status:   sanitize(inputs[4]?.value)
     });
   });
 
@@ -71,14 +111,14 @@ async function downloadPDF() {
   document.querySelectorAll('#toolHireBody tr').forEach(tr => {
     const inputs = tr.querySelectorAll('input, select');
     toolHireRows.push({
-      desc: inputs[0]?.value || '',
-      qty: inputs[1]?.value || '',
-      supplier: inputs[2]?.value || '',
-      hireIn: inputs[3]?.value || '',
-      expectedOut: inputs[4]?.value || '',
-      actualOut: inputs[5]?.value || '',
-      reason: inputs[6]?.value || '',
-      notes: inputs[7]?.value || ''
+      desc:        sanitize(inputs[0]?.value),
+      qty:         sanitize(inputs[1]?.value),
+      supplier:    sanitize(inputs[2]?.value),
+      hireIn:      sanitize(inputs[3]?.value),
+      expectedOut: sanitize(inputs[4]?.value),
+      actualOut:   sanitize(inputs[5]?.value),
+      reason:      sanitize(inputs[6]?.value),
+      notes:       sanitize(inputs[7]?.value)
     });
   });
 
@@ -87,12 +127,12 @@ async function downloadPDF() {
   document.querySelectorAll('#materialsBody tr').forEach(tr => {
     const inputs = tr.querySelectorAll('input, select');
     materialRows.push({
-      desc: inputs[0]?.value || '',
-      supplier: inputs[1]?.value || '',
-      docket: inputs[2]?.value || '',
-      qty: inputs[3]?.value || '',
-      unit: inputs[4]?.value || '',
-      time: inputs[5]?.value || ''
+      desc:     sanitize(inputs[0]?.value),
+      supplier: sanitize(inputs[1]?.value),
+      docket:   sanitize(inputs[2]?.value),
+      qty:      sanitize(inputs[3]?.value),
+      unit:     sanitize(inputs[4]?.value),
+      time:     sanitize(inputs[5]?.value)
     });
   });
 
@@ -101,11 +141,11 @@ async function downloadPDF() {
   document.querySelectorAll('[id^="act-"]').forEach(act => {
     const nameEl = act.querySelector('input[type="text"]');
     activityRows.push({
-      name: nameEl ? (nameEl.value || 'Activity') : 'Activity',
-      code: act.querySelectorAll('input[type="text"]')[1]?.value || '',
-      status: act.querySelector('.act-status')?.value || '',
-      desc: act.querySelector('.act-desc')?.value || '',
-      note: act.querySelector('.act-note')?.value || ''
+      name:   sanitize(nameEl?.value) || 'Activity',
+      code:   sanitize(act.querySelectorAll('input[type="text"]')[1]?.value),
+      status: sanitize(act.querySelector('.act-status')?.value),
+      desc:   sanitize(act.querySelector('.act-desc')?.value),
+      note:   sanitize(act.querySelector('.act-note')?.value)
     });
   });
 
@@ -114,10 +154,10 @@ async function downloadPDF() {
   document.querySelectorAll('[id^="del-"]').forEach(del => {
     const inputs = del.querySelectorAll('input, select');
     delayRows.push({
-      category: inputs[0]?.value || '—',
-      hours: inputs[1]?.value || '—',
-      clause: inputs[2]?.value || '—',
-      desc: inputs[3]?.value || '—'
+      category: sanitize(inputs[0]?.value) || '-',
+      hours:    sanitize(inputs[1]?.value) || '-',
+      clause:   sanitize(inputs[2]?.value) || '-',
+      desc:     sanitize(inputs[3]?.value) || '-'
     });
   });
 
