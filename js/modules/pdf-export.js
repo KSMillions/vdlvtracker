@@ -422,22 +422,38 @@ async function downloadPDF() {
 
   drawFooter();
 
-  // ── Save & Download ─────────────────────────────
+  // ── Save & Download (cross-platform + mobile) ────────
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf;charset=utf-8' });
-  const safeDate = date.replace(/[^0-9a-zA-Z-]/g, '');
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const filename = `VDLV_Site_Report_${date.replace(/[^0-9a-zA-Z-]/g, '')}.pdf`;
 
-  if (window.saveAs) {
-    window.saveAs(blob, `VDLV_Site_Report_${safeDate}.pdf`);
+  // iOS detection — Safari on iPhone/iPad doesn't support a.download
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isMobileSafari = isIOS || (/^((?!chrome|android).)*safari/i.test(navigator.userAgent) && 'ontouchstart' in window);
+
+  if (isMobileSafari) {
+    // iOS: open PDF in new tab — user can tap Share → Save to Files
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    showToast('PDF opened — tap Share to save ✓');
+  } else if (typeof saveAs !== 'undefined') {
+    // FileSaver.js available (best for desktop)
+    saveAs(blob, filename);
+    showToast('Full report PDF downloaded ✓');
   } else {
+    // Standard download fallback (Chrome, Firefox, Edge, Android)
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `VDLV_Site_Report_${safeDate}.pdf`;
+    a.download = filename;
+    a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => document.body.removeChild(a), 100);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    showToast('Full report PDF downloaded ✓');
   }
-
-  showToast('Full report PDF downloaded ✓');
 }
