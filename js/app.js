@@ -47,20 +47,45 @@ function saveDailyLog() {
 
 // ── New Day Reset ───────────────────────────────────
 function resetForNewDay() {
-  if (!confirm('Reset daily entries for a new day?\n\nSite information (project name, employer, contract) will be kept.\nLabour, plant, materials, activities and delays will be cleared.')) return;
+  if (!confirm(
+    'Reset for a new day?\n\n' +
+    'WILL BE CLEARED:\n' +
+    '  • Material Deliveries\n' +
+    '  • Weather & Site Conditions\n\n' +
+    'WILL BE KEPT:\n' +
+    '  • Labour Log\n' +
+    '  • Plant & Equipment\n' +
+    '  • Tool Hire\n' +
+    '  • Activity Progress\n' +
+    '  • Delays & Events\n' +
+    '  • Site Information'
+  )) return;
 
-  clearFormForNewProject();
-  document.getElementById('reportPreview').textContent =
-    'Click "Generate Report" to compile today\'s entries into a structured daily site report.';
+  // ── Clear Material Deliveries ──
+  const matBody = document.getElementById('materialsBody');
+  if (matBody) matBody.innerHTML = '';
+  setMaterialCounter(0);
+  recalcMat();
 
-  Object.keys(timelineState).forEach(k => delete timelineState[k]);
+  // ── Clear Weather & Site Conditions ──
+  setWeatherState('', '');
+  document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('selected'));
+  ['workPossible', 'rainfall', 'temperature'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 
+  // ── Advance the log date to today ──
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('logDate').value = today;
 
-  recalcLabour(); recalcPlant(); recalcMat(); recalcDelays(); recalcToolHire(); updateActivitySummary();
-  showToast('Reset for new day — site info retained');
+  // ── Reset report preview ──
+  const preview = document.getElementById('reportPreview');
+  if (preview) preview.textContent = 'Click "Generate Report" to compile today\'s entries into a structured daily site report.';
+
+  showToast('New day started — deliveries & weather cleared ✓');
 }
+
 
 // ── Initialization ─────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
