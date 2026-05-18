@@ -251,8 +251,26 @@ async function loadAndRenderTeam() {
 
   container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px 0;">Loading team…</div>';
 
-  const members = await loadProjectMembers(projectId);
+  // Load members and available users in parallel
+  const [members, availableUsers] = await Promise.all([
+    loadProjectMembers(projectId),
+    supabaseClient.rpc('get_available_users', { p_project_id: projectId })
+      .then(({ data, error }) => { if (error) throw error; return data || []; })
+      .catch(err => { console.error('get_available_users:', err); return []; })
+  ]);
 
+  // Populate the Add Member user dropdown
+  const userSelect = document.getElementById('addMemberUserSelect');
+  if (userSelect) {
+    if (availableUsers.length === 0) {
+      userSelect.innerHTML = '<option value="">All registered users are already members</option>';
+    } else {
+      userSelect.innerHTML = '<option value="">— Select a user —</option>' +
+        availableUsers.map(u => `<option value="${u.user_id}">${u.email}</option>`).join('');
+    }
+  }
+
+  // Render members list
   if (members.length === 0) {
     container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px 0;">No members found. You may need admin access to view this.</div>';
     return;
@@ -305,36 +323,12 @@ async function handleRemoveMember(memberId, email) {
 
 async function openAddMemberPanel() {
   const panel = document.getElementById('addMemberPanel');
-  const select = document.getElementById('addMemberUserSelect');
-  const projectId = getActiveProjectId();
 
-  // Toggle — if already open, close it
-  if (panel.style.display !== 'none') {
+  // Toggle visibility
+  if (panel.style.display === 'block') {
     panel.style.display = 'none';
-    return;
-  }
-
-  panel.style.display = 'block';
-  select.innerHTML = '<option value="">Loading users…</option>';
-
-  try {
-    // Fetch all Supabase users NOT already in this project
-    const { data, error } = await supabaseClient
-      .rpc('get_available_users', { p_project_id: projectId });
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      select.innerHTML = '<option value="">No available users — all users are already members</option>';
-      return;
-    }
-
-    select.innerHTML = '<option value="">— Select a user —</option>' +
-      data.map(u => `<option value="${u.user_id}">${u.email}</option>`).join('');
-
-  } catch (err) {
-    select.innerHTML = '<option value="">Error loading users</option>';
-    console.error('get_available_users error:', err);
+  } else {
+    panel.style.display = 'block';
   }
 }
 
