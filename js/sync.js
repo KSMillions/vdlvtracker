@@ -101,22 +101,42 @@ async function loadFromCloud(projectId) {
     updateSidebar();
   }
 
-  // -- Load today's daily log data (filtered by today's date)
+  // -- Try to load today's daily log first
   const today = new Date().toISOString().split('T')[0];
-  const { data, error } = await supabaseClient
+  const { data: todayData, error: todayError } = await supabaseClient
     .from('daily_logs')
     .select('*')
     .eq('project_id', projectId)
     .eq('log_date', today)
-    .maybeSingle(); // returns null if no row for today, not an error
+    .maybeSingle();
 
-  if (error) {
-    console.error('loadFromCloud error:', error);
+  if (todayError) {
+    console.error('loadFromCloud (today) error:', todayError);
+  }
+
+  if (todayData?.data) {
+    restoreFormState(todayData.data);
+    return true;
+  }
+
+  // -- Fallback: load the most recent log for this project (any date)
+  // This prevents clearing the form when a user logs back in mid-project
+  const { data: recentData, error: recentError } = await supabaseClient
+    .from('daily_logs')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('log_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentError) {
+    console.error('loadFromCloud (recent) error:', recentError);
     return false;
   }
 
-  if (data?.data) {
-    restoreFormState(data.data);
+  if (recentData?.data) {
+    restoreFormState(recentData.data);
+    showToast('Loaded most recent log (' + recentData.log_date + ')');
     return true;
   }
 

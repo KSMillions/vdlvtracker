@@ -123,12 +123,12 @@ async function removeMember(memberId) {
 
 function setActiveProject(id) {
   _activeProjectId = id;
-  sessionStorage.setItem('vdlv_active_project', id);
+  localStorage.setItem('vdlv_active_project', id);
 }
 
 function getActiveProjectId() {
   if (_activeProjectId) return _activeProjectId;
-  const stored = sessionStorage.getItem('vdlv_active_project');
+  const stored = localStorage.getItem('vdlv_active_project');
   if (stored) _activeProjectId = stored;
   return _activeProjectId;
 }

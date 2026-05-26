@@ -32,7 +32,7 @@ async function signIn(email, password) {
 async function signOut() {
   await supabaseClient.auth.signOut();
   localStorage.removeItem('vdlv_tracker_state');
-  sessionStorage.removeItem('vdlv_active_project');
+  localStorage.removeItem('vdlv_active_project');
   window.location.href = 'login.html';
 }
 
