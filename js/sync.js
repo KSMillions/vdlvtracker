@@ -146,6 +146,18 @@ async function loadFromCloud(projectId) {
 // ── Realtime Subscription ───────────────────────────
 
 function subscribeToProject(projectId) {
+  // Ghost users have full read access via RLS but no project_members row.
+  // Supabase Realtime's filtered subscription requires membership,
+  // so ghosts bypass realtime entirely and are immediately marked live.
+  if (typeof getIsGhost === 'function' && getIsGhost()) {
+    if (_realtimeChannel) {
+      supabaseClient.removeChannel(_realtimeChannel);
+      _realtimeChannel = null;
+    }
+    setRealtimeDot('live');
+    return;
+  }
+
   // Tear down previous subscription
   if (_realtimeChannel) {
     supabaseClient.removeChannel(_realtimeChannel);
