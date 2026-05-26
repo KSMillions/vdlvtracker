@@ -8,6 +8,7 @@ let _projects        = [];
 let _activeProjectId = null;
 let _currentUserRole = null; // 'admin' | 'member' for the active project
 let _isDirector      = false; // true = master access to all projects
+let _isGhost         = false; // true = hidden developer/observer account
 
 // ── Project CRUD ────────────────────────────────────
 
@@ -61,9 +62,15 @@ async function checkIsDirector() {
     .from('system_roles')
     .select('role')
     .maybeSingle();
-  _isDirector = !error && data?.role === 'director';
+
+  const role = !error && data?.role;
+  _isGhost    = role === 'ghost';
+  // Ghost gets full director-level access to all data
+  _isDirector = role === 'director' || role === 'ghost';
   return _isDirector;
 }
+
+function getIsGhost() { return _isGhost; }
 
 function getIsDirector() { return _isDirector; }
 
@@ -236,14 +243,17 @@ async function submitCreateProject() {
  * Show or hide admin-only UI elements based on _currentUserRole.
  */
 function applyRoleBasedUI() {
-  // Directors get full admin UI regardless of project role
+  // Ghost & directors get full admin UI regardless of project membership
   const isAdmin    = _isDirector || _currentUserRole === 'admin';
   const hasProject = _isDirector || _currentUserRole !== null;
 
-  // Role badge — three tiers
+  // Role badge — ghost users intentionally show nothing
   const roleBadge = document.getElementById('userRoleBadge');
   if (roleBadge) {
-    if (_isDirector) {
+    if (_isGhost) {
+      // Ghost: full access, zero footprint — no badge shown
+      roleBadge.textContent = '';
+    } else if (_isDirector) {
       roleBadge.textContent = '👑 Director';
       roleBadge.style.color = 'var(--gold)';
     } else if (!hasProject) {
